@@ -28,14 +28,9 @@ public class RunMe {
 	 */
 	public static String eventsDir = "Events-170301";
 
-	/*
-	 * download the context data and follow the same instructions as before.
-	 */
-	public static String contextsDir = "Contexts-170301";
 
 	public static void main(String[] args) {
 
 		new GettingStarted(eventsDir).run();
-		new GettingStartedContexts(contextsDir).run();
 	}
 }

@@ -17,11 +17,15 @@ package examples;
 
 import java.io.File;
 import java.time.ZonedDateTime;
+import java.util.Hashtable;
 import java.util.Set;
 
+import cc.kave.commons.model.events.ActivityEvent;
 import cc.kave.commons.model.events.CommandEvent;
 import cc.kave.commons.model.events.IDEEvent;
+import cc.kave.commons.model.events.NavigationEvent;
 import cc.kave.commons.model.events.completionevents.CompletionEvent;
+import cc.kave.commons.model.events.visualstudio.BuildEvent;
 import cc.kave.commons.model.ssts.ISST;
 import cc.kave.commons.utils.io.IReadingArchive;
 import cc.kave.commons.utils.io.ReadingArchive;
@@ -33,6 +37,7 @@ import cc.kave.commons.utils.io.ReadingArchive;
 public class GettingStarted {
 
 	private String eventsDir;
+	private Hashtable<String, Long> cumulativeActivityTime = new Hashtable<String, Long>();
 
 	public GettingStarted(String eventsDir) {
 		this.eventsDir = eventsDir;
@@ -40,6 +45,7 @@ public class GettingStarted {
 
 	public void run() {
 
+		
 		System.out.printf("looking (recursively) for events in folder %s\n", new File(eventsDir).getAbsolutePath());
 
 		/*
@@ -50,9 +56,12 @@ public class GettingStarted {
 		Set<String> userZips = IoHelper.findAllZips(eventsDir);
 
 		for (String userZip : userZips) {
-			System.out.printf("\n#### processing user zip: %s #####\n", userZip);
+			//System.out.printf("\n#### processing user zip: %s #####\n", userZip);
 			processUserZip(userZip);
 		}
+		System.out.printf("# of users: %d\n", userZips.size());
+		System.out.printf("hashtable activity: %s\n", this.cumulativeActivityTime.toString());
+		System.out.printf("hashtable activity size: %s\n", this.cumulativeActivityTime.size());
 	}
 
 	private void processUserZip(String userZip) {
@@ -73,53 +82,27 @@ public class GettingStarted {
 			}
 		}
 	}
-
-	/*
-	 * if you review the type hierarchy of IDEEvent, you will realize that several
-	 * subclasses exist that provide access to context information that is specific
-	 * to the event type.
-	 * 
-	 * To access the context, you should check for the runtime type of the event and
-	 * cast it accordingly.
-	 * 
-	 * As soon as I have some more time, I will implement the visitor pattern to get
-	 * rid of the casting. For now, this is recommended way to access the contents.
-	 */
+	
 	private void processEvent(IDEEvent e) {
 
-		if (e instanceof CommandEvent) {
-			process((CommandEvent) e);
-		} else if (e instanceof CompletionEvent) {
-			process((CompletionEvent) e);
+		if (e instanceof ActivityEvent) {
+			process((ActivityEvent) e);
 		} else {
-			/*
-			 * CommandEvent and Completion event are just two examples, please explore the
-			 * type hierarchy of IDEEvent to find other types and review their API to
-			 * understand what kind of context data is available.
-			 * 
-			 * We include this "fall back" case, to show which basic information is always
-			 * available.
-			 */
 			processBasic(e);
 		}
 
 	}
 
-	private void process(CommandEvent ce) {
-		System.out.printf("found a CommandEvent (id: %s)\n", ce.getCommandId());
-	}
-
-	private void process(CompletionEvent e) {
-		ISST snapshotOfEnclosingType = e.context.getSST();
-		String enclosingTypeName = snapshotOfEnclosingType.getEnclosingType().getFullName();
-
-		System.out.printf("found a CompletionEvent (was triggered in: %s)\n", enclosingTypeName);
+	private void process(ActivityEvent e) {
+		String id = e.IDESessionUUID;
+		if (this.cumulativeActivityTime.containsKey(id)){
+			this.cumulativeActivityTime.put(id, this.cumulativeActivityTime.get(id) + e.Duration.toMillis());
+		} else {
+			this.cumulativeActivityTime.put(id, e.Duration.toMillis());
+		}
 	}
 
 	private void processBasic(IDEEvent e) {
-		String eventType = e.getClass().getSimpleName();
-		ZonedDateTime triggerTime = e.getTriggeredAt();
-
-		System.out.printf("found an %s that has been triggered at: %s)\n", eventType, triggerTime);
+		//TODO
 	}
 }
