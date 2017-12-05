@@ -26,6 +26,11 @@ import cc.kave.commons.model.events.IDEEvent;
 import cc.kave.commons.model.events.NavigationEvent;
 import cc.kave.commons.model.events.completionevents.CompletionEvent;
 import cc.kave.commons.model.events.visualstudio.BuildEvent;
+import cc.kave.commons.model.events.visualstudio.DocumentEvent;
+import cc.kave.commons.model.events.visualstudio.FindEvent;
+import cc.kave.commons.model.events.visualstudio.IDEStateEvent;
+import cc.kave.commons.model.events.visualstudio.SolutionEvent;
+import cc.kave.commons.model.events.visualstudio.WindowEvent;
 import cc.kave.commons.model.ssts.ISST;
 import cc.kave.commons.utils.io.IReadingArchive;
 import cc.kave.commons.utils.io.ReadingArchive;
@@ -38,6 +43,7 @@ public class GettingStarted {
 
 	private String eventsDir;
 	private Hashtable<String, Long> cumulativeActivityTime = new Hashtable<String, Long>();
+	private Boolean wasNavigationEvent = false;
 
 	public GettingStarted(String eventsDir) {
 		this.eventsDir = eventsDir;
@@ -87,6 +93,18 @@ public class GettingStarted {
 
 		if (e instanceof ActivityEvent) {
 			process((ActivityEvent) e);
+		} else if (e instanceof DocumentEvent) {
+			process((DocumentEvent) e);
+		} else if (e instanceof FindEvent) {
+			process((FindEvent) e);
+		} else if (e instanceof IDEStateEvent) {
+			process((IDEStateEvent) e);
+		} else if (e instanceof SolutionEvent) {
+			process((SolutionEvent) e);
+		} else if (e instanceof WindowEvent) {
+			process((WindowEvent) e);
+		} else if (e instanceof NavigationEvent) {
+			process((NavigationEvent) e);
 		} else {
 			processBasic(e);
 		}
@@ -102,7 +120,44 @@ public class GettingStarted {
 		}
 	}
 
+	private void process(DocumentEvent de) {
+		if (de.Action.name().equals("Saved")) {
+			this.wasNavigationEvent = false;
+		} else {
+			this.wasNavigationEvent = true;
+		}
+	}
+	
+	private void process(IDEStateEvent ie) {
+		if(ie.IDELifecyclePhase.name().equals("Runtime")) {
+			this.wasNavigationEvent = true;
+		} else {
+			this.wasNavigationEvent = false;
+		}
+	}
+	
+	private void process(SolutionEvent se) {
+		if(se.Action.name().equals("OpenSolution") && se.Action.name().equals("CloseSolution")) {
+			this.wasNavigationEvent = true;
+		} else {
+			this.wasNavigationEvent = false;
+		}
+		
+	}
+	
+	private void process(FindEvent fe) {
+		this.wasNavigationEvent = true;
+	}
+	
+	private void process(WindowEvent we) {
+		this.wasNavigationEvent = true;
+	}
+	
+	private void process(NavigationEvent ne) {
+		this.wasNavigationEvent = true;
+	}
+	
 	private void processBasic(IDEEvent e) {
-		//TODO
+		this.wasNavigationEvent = false;
 	}
 }
