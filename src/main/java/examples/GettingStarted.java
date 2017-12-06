@@ -144,7 +144,7 @@ public class GettingStarted {
 			process((WindowEvent) e);
 		} else if (e instanceof NavigationEvent) {
 			process((NavigationEvent) e);
-		} else if (!(e instanceof NavigationEvent)){
+		} else {
 			processBasic(e);
 		}
 

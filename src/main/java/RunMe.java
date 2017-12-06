@@ -16,7 +16,6 @@
  */
 
 import examples.GettingStarted;
-import examples.GettingStartedContexts;
 
 public class RunMe {
 
