@@ -16,22 +16,20 @@
 package examples;
 
 import java.io.File;
-import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Set;
 
 import cc.kave.commons.model.events.ActivityEvent;
-import cc.kave.commons.model.events.CommandEvent;
 import cc.kave.commons.model.events.IDEEvent;
 import cc.kave.commons.model.events.NavigationEvent;
-import cc.kave.commons.model.events.completionevents.CompletionEvent;
+import cc.kave.commons.model.events.SystemEvent;
 import cc.kave.commons.model.events.visualstudio.BuildEvent;
 import cc.kave.commons.model.events.visualstudio.DocumentEvent;
 import cc.kave.commons.model.events.visualstudio.FindEvent;
 import cc.kave.commons.model.events.visualstudio.IDEStateEvent;
 import cc.kave.commons.model.events.visualstudio.SolutionEvent;
 import cc.kave.commons.model.events.visualstudio.WindowEvent;
-import cc.kave.commons.model.ssts.ISST;
 import cc.kave.commons.utils.io.IReadingArchive;
 import cc.kave.commons.utils.io.ReadingArchive;
 
@@ -42,16 +40,21 @@ import cc.kave.commons.utils.io.ReadingArchive;
 public class GettingStarted {
 
 	private String eventsDir;
-	private Hashtable<String, Long> cumulativeActivityTime = new Hashtable<String, Long>();
-	private Boolean wasNavigationEvent = false;
-
+	private Hashtable<String, Long> userTempActivityTable;
+	private Hashtable<String, ArrayList<Long>> userTotalActivityTable;
+	private Boolean wasNavigationEvent;
+	private Boolean isNavigationPeriod;
+	private String currentUser;
+	
 	public GettingStarted(String eventsDir) {
 		this.eventsDir = eventsDir;
+		this.userTempActivityTable = new Hashtable<String, Long>();
+		this.userTotalActivityTable = new Hashtable<String, ArrayList<Long>>();
+		this.wasNavigationEvent = false;
+		this.isNavigationPeriod = false;
 	}
 
 	public void run() {
-
-		
 		System.out.printf("looking (recursively) for events in folder %s\n", new File(eventsDir).getAbsolutePath());
 
 		/*
@@ -62,21 +65,29 @@ public class GettingStarted {
 		Set<String> userZips = IoHelper.findAllZips(eventsDir);
 
 		for (String userZip : userZips) {
-			//System.out.printf("\n#### processing user zip: %s #####\n", userZip);
+			System.out.printf("\n#### processing user zip: %s #####\n", userZip);
 			processUserZip(userZip);
 		}
 		System.out.printf("# of users: %d\n", userZips.size());
-		System.out.printf("hashtable activity: %s\n", this.cumulativeActivityTime.toString());
-		System.out.printf("hashtable activity size: %s\n", this.cumulativeActivityTime.size());
+		System.out.printf("hashtable activity: %s\n", this.userTempActivityTable.toString());
+		System.out.printf("hashtable total: %s\n", this.userTotalActivityTable.toString());
 	}
 
 	private void processUserZip(String userZip) {
-		int numProcessedEvents = 0;
+		System.out.println(userZip);
+		this.currentUser = userZip;
+		this.userTempActivityTable.put(this.currentUser, (long) 0);
+		ArrayList<Long> values = new ArrayList<Long>();
+		for (int i = 0; i <=1; i++)
+			values.add(new Long(0));
+		this.userTotalActivityTable.put(this.currentUser, values);
+		
+		this.wasNavigationEvent = false;
+		this.isNavigationPeriod = false;
 		// open the .zip file ...
 		try (IReadingArchive ra = new ReadingArchive(new File(eventsDir, userZip))) {
 			// ... and iterate over content.
-			// the iteration will stop after 200 events to speed things up.
-			while (ra.hasNext() && (numProcessedEvents++ < 200)) {
+			while (ra.hasNext()) {
 				/*
 				 * within the userZip, each stored event is contained as a single file that
 				 * contains the Json representation of a subclass of IDEEvent.
@@ -85,15 +96,43 @@ public class GettingStarted {
 
 				// the events can then be processed individually
 				processEvent(e);
+				
+				if (this.isNavigationPeriod != this.wasNavigationEvent){
+					ArrayList<Long>  updatedValues = new ArrayList<Long>();
+					for (int i = 0; i <=1; i++){
+						updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(i) + this.userTempActivityTable.get(this.currentUser));
+					}
+						
+					this.userTotalActivityTable.put(this.currentUser, updatedValues);
+					this.userTempActivityTable.put(this.currentUser, new Long(0));
+					this.isNavigationPeriod = !this.isNavigationPeriod;
+				}
+				
+				if (e instanceof ActivityEvent){
+					this.userTempActivityTable.put(this.currentUser, this.userTempActivityTable.get(this.currentUser) + e.Duration.toMillis());
+				} else if (e.Duration != null){
+					ArrayList<Long>  updatedValues = new ArrayList<Long>();
+					updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(0) + (this.wasNavigationEvent ? e.Duration.toMillis() : new Long(0)));
+					updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(1) + e.Duration.toMillis() + (this.wasNavigationEvent ? this.userTempActivityTable.get(this.currentUser) : new Long(0)));
+					
+					this.userTotalActivityTable.put(this.currentUser, updatedValues);
+					this.userTempActivityTable.put(this.currentUser, new Long(0));
+				}
 			}
+			ArrayList<Long>  updatedValues = new ArrayList<Long>();
+			updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(0) + (this.isNavigationPeriod ? this.userTempActivityTable.get(this.currentUser) : new Long(0)));
+			updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(1) + this.userTempActivityTable.get(this.currentUser));
+			
+			this.userTotalActivityTable.put(this.currentUser, updatedValues);
+			this.userTempActivityTable.put(this.currentUser, new Long(0));
+			double ratioU = ((double)this.userTotalActivityTable.get(this.currentUser).get(0))/((double)(this.userTotalActivityTable.get(this.currentUser).get(1)) + 1);
+			System.out.println("ratio: " + ratioU);
 		}
 	}
 	
 	private void processEvent(IDEEvent e) {
-
-		if (e instanceof ActivityEvent) {
-			process((ActivityEvent) e);
-		} else if (e instanceof DocumentEvent) {
+		
+		if (e instanceof DocumentEvent) {
 			process((DocumentEvent) e);
 		} else if (e instanceof FindEvent) {
 			process((FindEvent) e);
@@ -105,19 +144,10 @@ public class GettingStarted {
 			process((WindowEvent) e);
 		} else if (e instanceof NavigationEvent) {
 			process((NavigationEvent) e);
-		} else {
+		} else if (!(e instanceof NavigationEvent)){
 			processBasic(e);
 		}
 
-	}
-
-	private void process(ActivityEvent e) {
-		String id = e.IDESessionUUID;
-		if (this.cumulativeActivityTime.containsKey(id)){
-			this.cumulativeActivityTime.put(id, this.cumulativeActivityTime.get(id) + e.Duration.toMillis());
-		} else {
-			this.cumulativeActivityTime.put(id, e.Duration.toMillis());
-		}
 	}
 
 	private void process(DocumentEvent de) {
