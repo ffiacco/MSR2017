@@ -44,7 +44,7 @@ public class GettingStarted {
 	private Hashtable<String, ArrayList<Long>> userTotalActivityTable;
 	private Boolean wasNavigationEvent;
 	private Boolean isNavigationPeriod;
-	private String currentUser;
+	private String currentUUID;
 	
 	public GettingStarted(String eventsDir) {
 		this.eventsDir = eventsDir;
@@ -52,6 +52,7 @@ public class GettingStarted {
 		this.userTotalActivityTable = new Hashtable<String, ArrayList<Long>>();
 		this.wasNavigationEvent = false;
 		this.isNavigationPeriod = false;
+		this.currentUUID="";
 	}
 
 	public void run() {
@@ -71,19 +72,14 @@ public class GettingStarted {
 		System.out.printf("# of users: %d\n", userZips.size());
 		System.out.printf("hashtable activity: %s\n", this.userTempActivityTable.toString());
 		System.out.printf("hashtable total: %s\n", this.userTotalActivityTable.toString());
+		for (ArrayList<Long> a : this.userTotalActivityTable.values()){
+			double ratioU = ((double)a.get(0))/((double)a.get(1) + 1);
+			System.out.print("ratio: " + ratioU + ", ");
+		}
 	}
 
 	private void processUserZip(String userZip) {
 		System.out.println(userZip);
-		this.currentUser = userZip;
-		this.userTempActivityTable.put(this.currentUser, (long) 0);
-		ArrayList<Long> values = new ArrayList<Long>();
-		for (int i = 0; i <=1; i++)
-			values.add(new Long(0));
-		this.userTotalActivityTable.put(this.currentUser, values);
-		
-		this.wasNavigationEvent = false;
-		this.isNavigationPeriod = false;
 		// open the .zip file ...
 		try (IReadingArchive ra = new ReadingArchive(new File(eventsDir, userZip))) {
 			// ... and iterate over content.
@@ -93,40 +89,66 @@ public class GettingStarted {
 				 * contains the Json representation of a subclass of IDEEvent.
 				 */
 				IDEEvent e = ra.getNext(IDEEvent.class);
-
+				
+				
+				if (!this.currentUUID.equals(e.IDESessionUUID)){
+					if (!this.currentUUID.equals("")){
+						//if last event for a UUID is an activity, there will be still time in the temp table
+						//that must be emptied into the total table
+						ArrayList<Long>  updatedValues = new ArrayList<Long>();
+						//the ternary operator handles whether this time goes only in the total time
+						//or also in the navigation time, based on the last non-activity event
+						updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(0) + (this.isNavigationPeriod ? this.userTempActivityTable.get(this.currentUUID) : new Long(0)));
+						updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(1) + this.userTempActivityTable.get(this.currentUUID));
+						
+						this.userTotalActivityTable.put(this.currentUUID, updatedValues);
+						this.userTempActivityTable.put(this.currentUUID, new Long(0));
+					}
+					
+					//update UUID
+					this.currentUUID = e.IDESessionUUID;
+					System.out.println(this.currentUUID);
+					
+					//add new entry in the tables
+					this.userTempActivityTable.put(this.currentUUID, (long) 0);
+					ArrayList<Long> values = new ArrayList<Long>();
+					for (int i = 0; i <=1; i++)
+						values.add(new Long(0));
+					this.userTotalActivityTable.put(this.currentUUID, values);
+					this.wasNavigationEvent = false;
+					this.isNavigationPeriod = false;
+				}
+				
 				// the events can then be processed individually
 				processEvent(e);
 				
+				//when there is a switch from a navigation to a non-navigation period
+				//the temp table is emptied in the total table, in both values of the list
 				if (this.isNavigationPeriod != this.wasNavigationEvent){
 					ArrayList<Long>  updatedValues = new ArrayList<Long>();
 					for (int i = 0; i <=1; i++){
-						updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(i) + this.userTempActivityTable.get(this.currentUser));
+						updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(i) + this.userTempActivityTable.get(this.currentUUID));
 					}
 						
-					this.userTotalActivityTable.put(this.currentUser, updatedValues);
-					this.userTempActivityTable.put(this.currentUser, new Long(0));
+					this.userTotalActivityTable.put(this.currentUUID, updatedValues);
+					this.userTempActivityTable.put(this.currentUUID, new Long(0));
 					this.isNavigationPeriod = !this.isNavigationPeriod;
 				}
 				
+				
 				if (e instanceof ActivityEvent){
-					this.userTempActivityTable.put(this.currentUser, this.userTempActivityTable.get(this.currentUser) + e.Duration.toMillis());
+					//in the case of an activity event, we add it to the temp table
+					this.userTempActivityTable.put(this.currentUUID, this.userTempActivityTable.get(this.currentUUID) + e.Duration.toMillis());
 				} else if (e.Duration != null){
+					//otherwise, we add it directly to the total table 
 					ArrayList<Long>  updatedValues = new ArrayList<Long>();
-					updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(0) + (this.wasNavigationEvent ? e.Duration.toMillis() : new Long(0)));
-					updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(1) + e.Duration.toMillis() + (this.wasNavigationEvent ? this.userTempActivityTable.get(this.currentUser) : new Long(0)));
+					updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(0) + (this.wasNavigationEvent ? e.Duration.toMillis() : new Long(0)));
+					updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(1) + e.Duration.toMillis() + (this.wasNavigationEvent ? this.userTempActivityTable.get(this.currentUUID) : new Long(0)));
 					
-					this.userTotalActivityTable.put(this.currentUser, updatedValues);
-					this.userTempActivityTable.put(this.currentUser, new Long(0));
+					this.userTotalActivityTable.put(this.currentUUID, updatedValues);
+					this.userTempActivityTable.put(this.currentUUID, new Long(0));
 				}
 			}
-			ArrayList<Long>  updatedValues = new ArrayList<Long>();
-			updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(0) + (this.isNavigationPeriod ? this.userTempActivityTable.get(this.currentUser) : new Long(0)));
-			updatedValues.add(this.userTotalActivityTable.get(this.currentUser).get(1) + this.userTempActivityTable.get(this.currentUser));
-			
-			this.userTotalActivityTable.put(this.currentUser, updatedValues);
-			this.userTempActivityTable.put(this.currentUser, new Long(0));
-			double ratioU = ((double)this.userTotalActivityTable.get(this.currentUser).get(0))/((double)(this.userTotalActivityTable.get(this.currentUser).get(1)) + 1);
-			System.out.println("ratio: " + ratioU);
 		}
 	}
 	
