@@ -155,6 +155,10 @@ public class GettingStarted {
 		}
 	}
 	
+	public Hashtable<String, ArrayList<Long>> getUserTotalActivityTable() {
+		return userTotalActivityTable;
+	}
+
 	private void processEvent(IDEEvent e) {
 		
 		if (e instanceof DocumentEvent) {
