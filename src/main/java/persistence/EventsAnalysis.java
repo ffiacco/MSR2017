@@ -16,8 +16,14 @@
 package persistence;
 
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import cc.kave.commons.model.events.ActivityEvent;
@@ -33,12 +39,23 @@ import cc.kave.commons.model.events.visualstudio.WindowEvent;
 import cc.kave.commons.utils.io.IReadingArchive;
 import cc.kave.commons.utils.io.ReadingArchive;
 
+import org.supercsv.io.CsvListWriter;
+// CSV writing
+import org.supercsv.io.ICsvListWriter;
+import org.supercsv.prefs.CsvPreference;
+
 
 public class EventsAnalysis {
 
 	private String eventsDir;
+	
+	//Keeps track of the temporary activity of a given user until a non-activity event is found (nav or non-nav)
 	private Hashtable<String, Long> userTempActivityTable;
+	
+	//Keeps track of the total navigation and non-navigation time of a user
 	private Hashtable<String, ArrayList<Long>> userTotalActivityTable;
+	private Hashtable<String, Float> userActivityRatioTable;
+	
 	private Boolean wasNavigationEvent;
 	private Boolean isNavigationPeriod;
 	private String currentUUID;
@@ -47,9 +64,26 @@ public class EventsAnalysis {
 		this.eventsDir = eventsDir;
 		this.userTempActivityTable = new Hashtable<String, Long>();
 		this.userTotalActivityTable = new Hashtable<String, ArrayList<Long>>();
+		this.userActivityRatioTable = new Hashtable<String, Float>();
 		this.wasNavigationEvent = false;
 		this.isNavigationPeriod = false;
 		this.currentUUID="";
+	}
+	
+	private void writeRatiosToCsv() throws Exception {
+
+	    StringWriter output = new StringWriter();
+	    try (ICsvListWriter listWriter = new CsvListWriter(output, 
+	         CsvPreference.STANDARD_PREFERENCE)){
+	        for (Entry<String, Float> entry : userActivityRatioTable.entrySet()){
+	            listWriter.write(entry.getKey(), entry.getValue());
+	        }
+	    }
+	    
+	    PrintWriter out = new PrintWriter("ratios.csv");
+	    out.println(output);
+	    out.close();
+	    
 	}
 
 	public void run() {
@@ -61,9 +95,65 @@ public class EventsAnalysis {
 			System.out.printf("\n#### processing user zip: %s #####\n", userZip);
 			processUserZip(userZip);
 		}
-		System.out.printf("# of users: %d\n", userZips.size());
-		System.out.printf("hashtable activity: %s\n", this.userTempActivityTable.toString());
+		System.out.printf("# of users: %d\n", userZips.size());;
 		System.out.printf("hashtable total: %s\n", this.userTotalActivityTable.toString());
+		
+		// Process user statistics convert the totalUserActivity tables into ratio numbers
+
+
+		//Get min, max for range and compute mean and standard deviation
+		float minRatio = 1;
+		float maxRatio = 0; 
+		float sum = 0;
+		
+	    for(String UUID: userTotalActivityTable.keySet()) {
+	    		Long navigationTime = userTotalActivityTable.get(UUID).get(0);
+	    		Long nonNavigationTime = userTotalActivityTable.get(UUID).get(1);
+	    		Float ratio = (float) navigationTime / (navigationTime + nonNavigationTime);
+	    		
+	    		//Eliminate outliers
+	    		if(ratio > 0.05 && ratio < 0.95) {
+	    			userActivityRatioTable.put(UUID, ratio);
+	    		
+	    			if (ratio < minRatio)
+	    				minRatio = ratio;
+	    			if (maxRatio < ratio)
+	    				maxRatio = ratio;
+	    		
+	    			sum += ratio;
+	    		}
+	    }
+	    
+	    float mean = sum / userActivityRatioTable.size();
+	    
+	    //Compute Variance
+	    double variance = 0;
+	    for(String UUID: userActivityRatioTable.keySet()) {
+	    		double mean_dist_squared = Math.pow(userActivityRatioTable.get(UUID) - mean, 2);
+	    		variance += mean_dist_squared;
+	    }
+	    variance /= userActivityRatioTable.size();
+	    
+	    double sd = Math.sqrt(variance);
+	    
+	    System.out.println("Relevant count: " + userActivityRatioTable.size());
+	    System.out.println("Range: (" + minRatio + " to " + maxRatio + ") = " + (maxRatio-minRatio));
+	    System.out.println("Mean: " + mean);
+	    System.out.println("Standard Deviation: " + sd);
+	    		
+	    
+	    //Write data to CSV
+	    
+	    try {
+			writeRatiosToCsv();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	    
+	    
+	    
+	    System.out.println("Done");
 		
 	}
 
@@ -77,6 +167,7 @@ public class EventsAnalysis {
 				IDEEvent e = ra.getNext(IDEEvent.class);
 				
 				
+				//We just encountered another user-day combination given a new UUID record
 				if (!this.currentUUID.equals(e.IDESessionUUID)){
 					if (!this.currentUUID.equals("")){
 						//if last event for a UUID is an activity, there will be still time in the temp table
@@ -88,13 +179,8 @@ public class EventsAnalysis {
 						updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(1) + this.userTempActivityTable.get(this.currentUUID));
 						
 						this.userTotalActivityTable.put(this.currentUUID, updatedValues);
-						double ratioU = ((double)this.userTotalActivityTable.get(this.currentUUID).get(0))/((double)this.userTotalActivityTable.get(this.currentUUID).get(1) + 1);
-						System.out.println("ratio: " + ratioU);
 						this.userTempActivityTable.put(this.currentUUID, new Long(0));
-						if (this.userTotalActivityTable.get(this.currentUUID).get(1) < 1000){
-							this.userTotalActivityTable.remove(this.currentUUID);
-							System.out.println("Day too short: deleted");
-						}
+						
 					}
 					
 					//update UUID
@@ -103,9 +189,7 @@ public class EventsAnalysis {
 					
 					//add new entry in the tables
 					this.userTempActivityTable.put(this.currentUUID, (long) 0);
-					ArrayList<Long> values = new ArrayList<Long>();
-					for (int i = 0; i <=1; i++)
-						values.add(new Long(0));
+					ArrayList<Long> values = new ArrayList<>(Arrays.asList(new Long(0), new Long(0)));
 					this.userTotalActivityTable.put(this.currentUUID, values);
 					this.wasNavigationEvent = false;
 					this.isNavigationPeriod = false;
