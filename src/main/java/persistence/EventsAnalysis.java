@@ -136,7 +136,7 @@ public class EventsAnalysis {
 	    
 	    double sd = Math.sqrt(variance);
 	    
-	    System.out.println("Relevant count: " + userActivityRatioTable.size());
+	    System.out.println("Relevant ratios count: " + userActivityRatioTable.size());
 	    System.out.println("Range: (" + minRatio + " to " + maxRatio + ") = " + (maxRatio-minRatio));
 	    System.out.println("Mean: " + mean);
 	    System.out.println("Standard Deviation: " + sd);
@@ -158,7 +158,6 @@ public class EventsAnalysis {
 	}
 
 	private void processUserZip(String userZip) {
-		System.out.println(userZip);
 		
 		try (IReadingArchive ra = new ReadingArchive(new File(eventsDir, userZip))) {
 			
@@ -185,7 +184,6 @@ public class EventsAnalysis {
 					
 					//update UUID
 					this.currentUUID = e.IDESessionUUID;
-					System.out.println(this.currentUUID);
 					
 					//add new entry in the tables
 					this.userTempActivityTable.put(this.currentUUID, (long) 0);
