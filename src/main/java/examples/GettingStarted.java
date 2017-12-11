@@ -72,10 +72,7 @@ public class GettingStarted {
 		System.out.printf("# of users: %d\n", userZips.size());
 		System.out.printf("hashtable activity: %s\n", this.userTempActivityTable.toString());
 		System.out.printf("hashtable total: %s\n", this.userTotalActivityTable.toString());
-		for (ArrayList<Long> a : this.userTotalActivityTable.values()){
-			double ratioU = ((double)a.get(0))/((double)a.get(1) + 1);
-			System.out.print("ratio: " + ratioU + ", ");
-		}
+		
 	}
 
 	private void processUserZip(String userZip) {
@@ -102,7 +99,13 @@ public class GettingStarted {
 						updatedValues.add(this.userTotalActivityTable.get(this.currentUUID).get(1) + this.userTempActivityTable.get(this.currentUUID));
 						
 						this.userTotalActivityTable.put(this.currentUUID, updatedValues);
+						double ratioU = ((double)this.userTotalActivityTable.get(this.currentUUID).get(0))/((double)this.userTotalActivityTable.get(this.currentUUID).get(1) + 1);
+						System.out.println("ratio: " + ratioU);
 						this.userTempActivityTable.put(this.currentUUID, new Long(0));
+						if (this.userTotalActivityTable.get(this.currentUUID).get(1) < 1000){
+							this.userTotalActivityTable.remove(this.currentUUID);
+							System.out.println("Day too short: deleted");
+						}
 					}
 					
 					//update UUID
