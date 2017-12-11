@@ -15,21 +15,15 @@
  * the License.
  */
 
-import examples.GettingStarted;
+import persistence.EventsAnalysis;
 
-public class RunMe {
+public class MSR2017 {
 
-	/*
-	 * download the interaction data and unzip it into the root of this project (at
-	 * the level of the pom.xml). Unpack it, you should now have a folder that
-	 * includes a bunch of folders that have dates as names and that contain .zip
-	 * files.
-	 */
 	public static String eventsDir = "Events-170301";
 
 
 	public static void main(String[] args) {
 
-		new GettingStarted(eventsDir).run();
+		new EventsAnalysis(eventsDir).run();
 	}
 }

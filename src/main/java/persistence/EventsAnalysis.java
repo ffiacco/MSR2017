@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package examples;
+package persistence;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -33,11 +33,8 @@ import cc.kave.commons.model.events.visualstudio.WindowEvent;
 import cc.kave.commons.utils.io.IReadingArchive;
 import cc.kave.commons.utils.io.ReadingArchive;
 
-/**
- * Simple example that shows how the interaction dataset can be opened, all
- * users identified, and all contained events deserialized.
- */
-public class GettingStarted {
+
+public class EventsAnalysis {
 
 	private String eventsDir;
 	private Hashtable<String, Long> userTempActivityTable;
@@ -46,7 +43,7 @@ public class GettingStarted {
 	private Boolean isNavigationPeriod;
 	private String currentUUID;
 	
-	public GettingStarted(String eventsDir) {
+	public EventsAnalysis(String eventsDir) {
 		this.eventsDir = eventsDir;
 		this.userTempActivityTable = new Hashtable<String, Long>();
 		this.userTotalActivityTable = new Hashtable<String, ArrayList<Long>>();
@@ -58,11 +55,6 @@ public class GettingStarted {
 	public void run() {
 		System.out.printf("looking (recursively) for events in folder %s\n", new File(eventsDir).getAbsolutePath());
 
-		/*
-		 * Each .zip that is contained in the eventsDir represents all events that we
-		 * have collected for a specific user, the folder represents the first day when
-		 * the user uploaded data.
-		 */
 		Set<String> userZips = IoHelper.findAllZips(eventsDir);
 
 		for (String userZip : userZips) {
@@ -77,14 +69,11 @@ public class GettingStarted {
 
 	private void processUserZip(String userZip) {
 		System.out.println(userZip);
-		// open the .zip file ...
+		
 		try (IReadingArchive ra = new ReadingArchive(new File(eventsDir, userZip))) {
-			// ... and iterate over content.
+			
 			while (ra.hasNext()) {
-				/*
-				 * within the userZip, each stored event is contained as a single file that
-				 * contains the Json representation of a subclass of IDEEvent.
-				 */
+				
 				IDEEvent e = ra.getNext(IDEEvent.class);
 				
 				
@@ -122,7 +111,6 @@ public class GettingStarted {
 					this.isNavigationPeriod = false;
 				}
 				
-				// the events can then be processed individually
 				processEvent(e);
 				
 				//when there is a switch from a navigation to a non-navigation period
